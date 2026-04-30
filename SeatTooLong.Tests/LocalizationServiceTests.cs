@@ -11,6 +11,7 @@ public class LocalizationServiceTests
         Assert.Equal("zh", svc.CurrentLanguage);
         Assert.Equal("设置", svc.Get("settings.title"));
         Assert.Equal("退出", svc.Get("tray.exit"));
+        Assert.Equal("开始录制素材", svc.Get("tray.record_start"));
     }
 
     [Fact]
@@ -20,6 +21,7 @@ public class LocalizationServiceTests
         Assert.Equal("en", svc.CurrentLanguage);
         Assert.Equal("Settings", svc.Get("settings.title"));
         Assert.Equal("Exit", svc.Get("tray.exit"));
+        Assert.Equal("Start Recording Samples", svc.Get("tray.record_start"));
     }
 
     [Fact]

@@ -4,6 +4,8 @@ public class MonitoringService
 {
     private readonly ICameraService _camera;
     private readonly IPersonDetector _detector;
+    private readonly IFrameRecorder? _frameRecorder;
+    private readonly ITimeProvider _timeProvider;
 
     public SittingMonitor Monitor { get; }
     public bool IsPaused { get; set; }
@@ -13,10 +15,13 @@ public class MonitoringService
         IPersonDetector detector,
         SittingMonitorOptions options,
         ITimeProvider timeProvider,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IFrameRecorder? frameRecorder = null)
     {
         _camera = camera;
         _detector = detector;
+        _frameRecorder = frameRecorder;
+        _timeProvider = timeProvider;
         Monitor = new SittingMonitor(options, timeProvider, notificationService);
     }
 
@@ -34,5 +39,17 @@ public class MonitoringService
 
         bool personDetected = _detector.DetectPerson(frame.Data, frame.Width, frame.Height);
         Monitor.OnDetectionResult(personDetected);
+
+        if (_frameRecorder?.IsRecording == true)
+        {
+            _frameRecorder.RecordFrame(frame, new FrameRecordingMetadata(
+                _timeProvider.Now,
+                personDetected,
+                Monitor.CurrentState,
+                Monitor.CurrentStateDuration,
+                Monitor.CurrentSittingDuration,
+                Monitor.IsInAbsenceGracePeriod,
+                Monitor.CurrentAbsenceDuration));
+        }
     }
 }

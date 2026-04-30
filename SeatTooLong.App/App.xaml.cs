@@ -26,6 +26,7 @@ public partial class App : Application
     private RegistryAutoStartService? _autoStartService;
     private SittingMonitorOptions? _monitorOptions;
     private ToastNotificationService? _notificationService;
+    private FileFrameRecorder? _frameRecorder;
     private AppSettings _currentSettings = new();
 
     protected override void OnStartup(StartupEventArgs e)
@@ -37,6 +38,7 @@ public partial class App : Application
         Directory.CreateDirectory(appDataDir);
         _settingsService = new JsonSettingsService(Path.Combine(appDataDir, "settings.json"));
         _currentSettings = _settingsService.Load();
+        _frameRecorder = new FileFrameRecorder(Path.Combine(appDataDir, "recordings"));
 
         // Localization
         _localization = new LocalizationService(_currentSettings.Language);
@@ -67,7 +69,7 @@ public partial class App : Application
         _cameraService.Open(_currentSettings.CameraIndex);
 
         _monitoringService = new MonitoringService(
-            _cameraService, detector, _monitorOptions, timeProvider, _notificationService);
+            _cameraService, detector, _monitorOptions, timeProvider, _notificationService, _frameRecorder);
 
         // Wire statistics to state changes
         _monitoringService.Monitor.StateChanged += (_, newState) =>
@@ -160,6 +162,14 @@ public partial class App : Application
                 : _localization.Get("tray.pause");
         };
 
+        var recordItem = new System.Windows.Controls.MenuItem
+        {
+            Header = _frameRecorder?.IsRecording == true
+                ? _localization.Get("tray.record_stop")
+                : _localization.Get("tray.record_start")
+        };
+        recordItem.Click += (_, _) => ToggleRecording(recordItem);
+
         var todayItem = new System.Windows.Controls.MenuItem { Header = _localization.Get("tray.today") };
         todayItem.Click += (_, _) => ShowReport();
 
@@ -171,6 +181,7 @@ public partial class App : Application
 
         menu.Items.Add(openItem);
         menu.Items.Add(pauseItem);
+        menu.Items.Add(recordItem);
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Items.Add(todayItem);
         menu.Items.Add(settingsItem);
@@ -178,6 +189,22 @@ public partial class App : Application
         menu.Items.Add(exitItem);
 
         return menu;
+    }
+
+    private void ToggleRecording(System.Windows.Controls.MenuItem recordItem)
+    {
+        if (_frameRecorder == null) return;
+
+        if (_frameRecorder.IsRecording)
+        {
+            _frameRecorder.StopRecording();
+            recordItem.Header = _localization!.Get("tray.record_start");
+        }
+        else
+        {
+            _frameRecorder.StartRecording();
+            recordItem.Header = _localization!.Get("tray.record_stop");
+        }
     }
 
     private void ShowMainWindow()
@@ -268,6 +295,7 @@ public partial class App : Application
         _overlayTimer?.Stop();
         _statsService?.FlushActiveSessions();
         _overlayWindow?.Close();
+        _frameRecorder?.Dispose();
         _trayIcon?.Dispose();
         _cameraService?.Dispose();
         _statsRepo?.Dispose();

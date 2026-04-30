@@ -7,6 +7,7 @@ public class MonitoringServiceTests
 {
     private readonly Mock<ICameraService> _cameraMock;
     private readonly Mock<IPersonDetector> _detectorMock;
+    private readonly Mock<IFrameRecorder> _recorderMock;
     private readonly Mock<ITimeProvider> _timeMock;
     private readonly Mock<INotificationService> _notifyMock;
     private readonly SittingMonitorOptions _options;
@@ -16,6 +17,7 @@ public class MonitoringServiceTests
     {
         _cameraMock = new Mock<ICameraService>();
         _detectorMock = new Mock<IPersonDetector>();
+        _recorderMock = new Mock<IFrameRecorder>();
         _timeMock = new Mock<ITimeProvider>();
         _notifyMock = new Mock<INotificationService>();
         _currentTime = new DateTime(2026, 4, 30, 9, 0, 0);
@@ -29,10 +31,11 @@ public class MonitoringServiceTests
         _cameraMock.Setup(c => c.IsAvailable).Returns(true);
         _cameraMock.Setup(c => c.CaptureFrame())
             .Returns(new CapturedFrame(new byte[640 * 480 * 3], 640, 480));
+        _recorderMock.Setup(r => r.IsRecording).Returns(true);
     }
 
-    private MonitoringService CreateService() =>
-        new MonitoringService(_cameraMock.Object, _detectorMock.Object, _options, _timeMock.Object, _notifyMock.Object);
+    private MonitoringService CreateService(IFrameRecorder? recorder = null) =>
+        new MonitoringService(_cameraMock.Object, _detectorMock.Object, _options, _timeMock.Object, _notifyMock.Object, recorder);
 
     [Fact]
     public void Tick_WhenCameraUnavailable_ShouldNotCallDetector()
@@ -45,6 +48,7 @@ public class MonitoringServiceTests
         service.Tick();
 
         _detectorMock.Verify(d => d.DetectPerson(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        _recorderMock.Verify(r => r.RecordFrame(It.IsAny<CapturedFrame>(), It.IsAny<FrameRecordingMetadata>()), Times.Never);
     }
 
     [Fact]
@@ -80,5 +84,48 @@ public class MonitoringServiceTests
 
         Assert.Equal(SittingState.Idle, service.Monitor.CurrentState);
         _detectorMock.Verify(d => d.DetectPerson(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public void Tick_WhenRecorderIsRecording_ShouldRecordFrameWithDetectionMetadata()
+    {
+        _detectorMock.Setup(d => d.DetectPerson(It.IsAny<byte[]>(), 640, 480)).Returns(true);
+        var service = CreateService(_recorderMock.Object);
+
+        service.Tick();
+
+        _recorderMock.Verify(r => r.RecordFrame(
+            It.Is<CapturedFrame>(f => f.Width == 640 && f.Height == 480),
+            It.Is<FrameRecordingMetadata>(m =>
+                m.Timestamp == _currentTime &&
+                m.PersonDetected &&
+                m.State == SittingState.Sitting &&
+                m.CurrentStateDuration == TimeSpan.Zero &&
+                m.CurrentSittingDuration == TimeSpan.Zero &&
+                !m.IsInAbsenceGracePeriod)),
+            Times.Once);
+    }
+
+    [Fact]
+    public void Tick_WhenRecorderIsNotRecording_ShouldNotRecordFrame()
+    {
+        _recorderMock.Setup(r => r.IsRecording).Returns(false);
+        _detectorMock.Setup(d => d.DetectPerson(It.IsAny<byte[]>(), 640, 480)).Returns(true);
+        var service = CreateService(_recorderMock.Object);
+
+        service.Tick();
+
+        _recorderMock.Verify(r => r.RecordFrame(It.IsAny<CapturedFrame>(), It.IsAny<FrameRecordingMetadata>()), Times.Never);
+    }
+
+    [Fact]
+    public void Tick_WhenCaptureReturnsNull_ShouldNotRecordFrame()
+    {
+        _cameraMock.Setup(c => c.CaptureFrame()).Returns((CapturedFrame?)null);
+        var service = CreateService(_recorderMock.Object);
+
+        service.Tick();
+
+        _recorderMock.Verify(r => r.RecordFrame(It.IsAny<CapturedFrame>(), It.IsAny<FrameRecordingMetadata>()), Times.Never);
     }
 }
