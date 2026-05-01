@@ -31,6 +31,18 @@ public class ToastNotificationService : INotificationService
         ShowToast(msg.Title, msg.Body);
     }
 
+    public void NotifyCameraOpenFailed()
+    {
+        var msg = NotificationMessageBuilder.BuildCameraOpenFailedMessage(_lang);
+        ShowToast(msg.Title, msg.Body);
+    }
+
+    public void NotifyCameraReadFailed()
+    {
+        var msg = NotificationMessageBuilder.BuildCameraReadFailedMessage(_lang);
+        ShowToast(msg.Title, msg.Body);
+    }
+
     private void ShowToast(string title, string body)
     {
         new ToastContentBuilder()

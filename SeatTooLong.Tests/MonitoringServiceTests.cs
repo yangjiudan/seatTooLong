@@ -38,6 +38,33 @@ public class MonitoringServiceTests
         new MonitoringService(_cameraMock.Object, _detectorMock.Object, _options, _timeMock.Object, _notifyMock.Object, recorder);
 
     [Fact]
+    public void AnalyzeTick_WhenPersonDetected_ShouldDelayMutationUntilResultIsApplied()
+    {
+        _detectorMock.Setup(d => d.DetectPerson(It.IsAny<byte[]>(), 640, 480)).Returns(true);
+        var service = CreateService(_recorderMock.Object);
+
+        var result = service.AnalyzeTick();
+
+        Assert.NotNull(result);
+        Assert.Equal(SittingState.Idle, service.Monitor.CurrentState);
+        _recorderMock.Verify(r => r.RecordFrame(It.IsAny<CapturedFrame>(), It.IsAny<FrameRecordingMetadata>()), Times.Never);
+
+        service.ApplyTickResult(result!);
+
+        Assert.Equal(SittingState.Sitting, service.Monitor.CurrentState);
+        _recorderMock.Verify(r => r.RecordFrame(
+            It.Is<CapturedFrame>(f => f.Width == 640 && f.Height == 480),
+            It.Is<FrameRecordingMetadata>(m =>
+                m.Timestamp == _currentTime &&
+                m.PersonDetected &&
+                m.State == SittingState.Sitting &&
+                m.CurrentStateDuration == TimeSpan.Zero &&
+                m.CurrentSittingDuration == TimeSpan.Zero &&
+                !m.IsInAbsenceGracePeriod)),
+            Times.Once);
+    }
+
+    [Fact]
     public void Tick_WhenCameraUnavailable_ShouldNotCallDetector()
     {
         _cameraMock.Setup(c => c.IsAvailable).Returns(false);

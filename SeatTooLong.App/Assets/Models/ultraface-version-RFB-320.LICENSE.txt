@@ -1,0 +1,5 @@
+UltraFace version-RFB-320
+Source: https://github.com/onnx/models/tree/main/validated/vision/body_analysis/ultraface
+
+License: MIT
+Reference: https://github.com/onnx/models/tree/main/validated/vision/body_analysis/ultraface/README.md

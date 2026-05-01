@@ -51,8 +51,10 @@
 
         <TextBlock x:Name="LblInterval" Grid.Row="2" Text="检测间隔（秒）" VerticalAlignment="Center" Margin="0,8"/>
         <ComboBox x:Name="CmbInterval" Grid.Row="2" Grid.Column="1" Margin="0,8">
+            <ComboBoxItem Content="1"/>
+            <ComboBoxItem Content="2" IsSelected="True"/>
             <ComboBoxItem Content="3"/>
-            <ComboBoxItem Content="5" IsSelected="True"/>
+            <ComboBoxItem Content="5"/>
             <ComboBoxItem Content="10"/>
         </ComboBox>
 
@@ -63,9 +65,9 @@
                 <ColumnDefinition Width="76"/>
             </Grid.ColumnDefinitions>
             <Slider x:Name="SliderAbsenceGracePeriod" Minimum="1" Maximum="30"
-                    TickFrequency="1" IsSnapToTickEnabled="True" Value="5"
+                    TickFrequency="1" IsSnapToTickEnabled="True" Value="2"
                     ValueChanged="Slider_ValueChanged"/>
-            <TextBlock x:Name="TxtAbsenceGracePeriodValue" Grid.Column="1" Text="5 秒"
+                <TextBlock x:Name="TxtAbsenceGracePeriodValue" Grid.Column="1" Text="2 秒"
                        VerticalAlignment="Center" TextAlignment="Right"/>
         </Grid>
 

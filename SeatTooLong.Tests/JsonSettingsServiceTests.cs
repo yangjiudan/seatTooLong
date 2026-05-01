@@ -26,8 +26,8 @@ public class JsonSettingsServiceTests : IDisposable
 
         Assert.Equal(45, settings.SitThresholdMinutes);
         Assert.Equal(5, settings.RestDurationMinutes);
-        Assert.Equal(5, settings.DetectionIntervalSeconds);
-        Assert.Equal(5, settings.AbsenceGracePeriodSeconds);
+        Assert.Equal(2, settings.DetectionIntervalSeconds);
+        Assert.Equal(2, settings.AbsenceGracePeriodSeconds);
         Assert.True(settings.AutoStart);
         Assert.Equal("auto", settings.Language);
         Assert.True(settings.ShowOverlay);

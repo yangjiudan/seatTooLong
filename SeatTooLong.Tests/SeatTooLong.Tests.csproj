@@ -32,6 +32,15 @@
     <None Update="haarcascade_frontalface_default.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\SeatTooLong.IntegrationTest\haarcascade_profileface.xml" Link="haarcascade_profileface.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\SeatTooLong.IntegrationTest\haarcascade_upperbody.xml" Link="haarcascade_upperbody.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Content Include="..\SeatTooLong.App\Assets\Models\ultraface-version-RFB-320.onnx" Link="Assets\Models\ultraface-version-RFB-320.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\TestSamples\**\*.jpg" Link="TestSamples\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

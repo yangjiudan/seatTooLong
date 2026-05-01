@@ -27,24 +27,36 @@ public class MonitoringService
 
     public void Tick()
     {
+        var result = AnalyzeTick();
+        if (result != null)
+            ApplyTickResult(result);
+    }
+
+    public MonitoringTickResult? AnalyzeTick()
+    {
         if (IsPaused)
-            return;
+            return null;
 
         if (!_camera.IsAvailable)
-            return;
+            return null;
 
         var frame = _camera.CaptureFrame();
         if (frame == null)
-            return;
+            return null;
 
         bool personDetected = _detector.DetectPerson(frame.Data, frame.Width, frame.Height);
-        Monitor.OnDetectionResult(personDetected);
+        return new MonitoringTickResult(frame, personDetected, _timeProvider.Now);
+    }
+
+    public void ApplyTickResult(MonitoringTickResult result)
+    {
+        Monitor.OnDetectionResult(result.PersonDetected);
 
         if (_frameRecorder?.IsRecording == true)
         {
-            _frameRecorder.RecordFrame(frame, new FrameRecordingMetadata(
-                _timeProvider.Now,
-                personDetected,
+            _frameRecorder.RecordFrame(result.Frame, new FrameRecordingMetadata(
+                result.Timestamp,
+                result.PersonDetected,
                 Monitor.CurrentState,
                 Monitor.CurrentStateDuration,
                 Monitor.CurrentSittingDuration,
@@ -52,4 +64,9 @@ public class MonitoringService
                 Monitor.CurrentAbsenceDuration));
         }
     }
+
+    public sealed record MonitoringTickResult(
+        CapturedFrame Frame,
+        bool PersonDetected,
+        DateTime Timestamp);
 }

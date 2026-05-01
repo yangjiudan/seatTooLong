@@ -50,4 +50,32 @@ public static class NotificationMessageBuilder
             "休息不足",
             $"建议再休息 {remainingMin} 分钟。");
     }
+
+    public static NotificationMessage BuildCameraOpenFailedMessage(string lang)
+    {
+        if (lang == "en")
+        {
+            return new NotificationMessage(
+                "Camera unavailable",
+                "SeatTooLong could not access the camera. Check whether it is connected, already in use, or blocked by Windows privacy settings.");
+        }
+
+        return new NotificationMessage(
+            "摄像头不可用",
+            "SeatTooLong 无法访问摄像头。请检查摄像头是否已连接、被占用，或被 Windows 隐私权限拦截。");
+    }
+
+    public static NotificationMessage BuildCameraReadFailedMessage(string lang)
+    {
+        if (lang == "en")
+        {
+            return new NotificationMessage(
+                "Camera frame read failed",
+                "SeatTooLong cannot read frames from the camera right now. Monitoring will keep retrying automatically.");
+        }
+
+        return new NotificationMessage(
+            "摄像头读取失败",
+            "SeatTooLong 暂时无法读取摄像头画面，监测会继续自动重试。请检查连接状态或关闭正在占用摄像头的程序。");
+    }
 }

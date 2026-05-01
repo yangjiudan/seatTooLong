@@ -8,6 +8,7 @@ using SeatTooLong.Core;
 using SeatTooLong.Core.Localization;
 using SeatTooLong.Core.Settings;
 using SeatTooLong.Core.Statistics;
+using SeatTooLong.Core.Vision;
 
 namespace SeatTooLong.App;
 
@@ -19,6 +20,7 @@ public partial class App : Application
     private DispatcherTimer? _overlayTimer;
     private OpenCvCameraService? _cameraService;
     private OverlayWindow? _overlayWindow;
+    private CameraPreviewWindow? _cameraPreviewWindow;
     private SqliteStatisticsRepository? _statsRepo;
     private StatisticsService? _statsService;
     private LocalizationService? _localization;
@@ -27,7 +29,11 @@ public partial class App : Application
     private SittingMonitorOptions? _monitorOptions;
     private ToastNotificationService? _notificationService;
     private FileFrameRecorder? _frameRecorder;
+    private DnnDeskPresenceDetector? _personDetector;
     private AppSettings _currentSettings = new();
+    private CameraFailureKind _cameraFailure = CameraFailureKind.None;
+    private int _monitoringTickInProgress;
+    private bool _isShuttingDown;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -65,11 +71,14 @@ public partial class App : Application
         };
         _notificationService = new ToastNotificationService { Language = _localization.CurrentLanguage };
         _cameraService = new OpenCvCameraService();
-        var detector = new HaarPersonDetector();
-        _cameraService.Open(_currentSettings.CameraIndex);
+        var faceModelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Models", "ultraface-version-RFB-320.onnx");
+        var profileFaceCascadePath = Path.Combine(AppContext.BaseDirectory, "haarcascade_profileface.xml");
+        var upperBodyCascadePath = Path.Combine(AppContext.BaseDirectory, "haarcascade_upperbody.xml");
+        _personDetector = new DnnDeskPresenceDetector(faceModelPath, profileFaceCascadePath, upperBodyCascadePath);
+        var cameraOpened = _cameraService.Open(_currentSettings.CameraIndex);
 
         _monitoringService = new MonitoringService(
-            _cameraService, detector, _monitorOptions, timeProvider, _notificationService, _frameRecorder);
+            _cameraService, _personDetector, _monitorOptions, timeProvider, _notificationService, _frameRecorder);
 
         // Wire statistics to state changes
         _monitoringService.Monitor.StateChanged += (_, newState) =>
@@ -80,6 +89,7 @@ public partial class App : Application
 
         // Tray
         SetupTrayIcon();
+        UpdateCameraFailure(cameraOpened ? CameraFailureKind.None : _cameraService.LastFailure);
         StartMonitoringTimer(TimeSpan.FromSeconds(_currentSettings.DetectionIntervalSeconds));
 
         // Overlay
@@ -126,10 +136,13 @@ public partial class App : Application
             _ => _monitoringService.Monitor.CurrentSittingDuration
         };
 
+        var idleLabelKey = _cameraFailure == CameraFailureKind.None ? "overlay.idle" : "overlay.camera_issue";
+        var sittingLabelKey = _cameraFailure == CameraFailureKind.None ? "overlay.sitting" : "overlay.camera_issue";
+
         _overlayWindow.UpdateState(state, duration,
             isInAbsenceGracePeriod,
-            _localization!.Get("overlay.idle"),
-            _localization!.Get("overlay.sitting"),
+            _localization!.Get(idleLabelKey),
+            _localization!.Get(sittingLabelKey),
             _localization.Get("overlay.absent"),
             _localization.Get("overlay.resting"),
             _localization.Get("overlay.alert"));
@@ -181,6 +194,9 @@ public partial class App : Application
         };
         recordItem.Click += (_, _) => ToggleRecording(recordItem);
 
+        var previewItem = new System.Windows.Controls.MenuItem { Header = _localization.Get("tray.preview") };
+        previewItem.Click += (_, _) => ShowCameraPreview();
+
         var todayItem = new System.Windows.Controls.MenuItem { Header = _localization.Get("tray.today") };
         todayItem.Click += (_, _) => ShowReport();
 
@@ -193,6 +209,7 @@ public partial class App : Application
         menu.Items.Add(openItem);
         menu.Items.Add(pauseItem);
         menu.Items.Add(recordItem);
+        menu.Items.Add(previewItem);
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Items.Add(todayItem);
         menu.Items.Add(settingsItem);
@@ -240,6 +257,27 @@ public partial class App : Application
         win.Show();
     }
 
+    private void ShowCameraPreview()
+    {
+        if (_cameraPreviewWindow != null)
+        {
+            if (_cameraPreviewWindow.WindowState == WindowState.Minimized)
+                _cameraPreviewWindow.WindowState = WindowState.Normal;
+
+            _cameraPreviewWindow.Activate();
+            return;
+        }
+
+        if (_cameraService == null || _localization == null)
+            return;
+
+        var win = new CameraPreviewWindow(() => _cameraService.CaptureFrame(), _localization);
+        win.Closed += (_, _) => _cameraPreviewWindow = null;
+        _cameraPreviewWindow = win;
+        win.Show();
+        win.Activate();
+    }
+
     private void OnSettingsSaved(AppSettings settings)
     {
         var previousCameraIndex = _currentSettings.CameraIndex;
@@ -265,7 +303,10 @@ public partial class App : Application
         }
 
         if (_cameraService != null && settings.CameraIndex != previousCameraIndex)
-            _cameraService.Open(settings.CameraIndex);
+        {
+            var opened = _cameraService.Open(settings.CameraIndex);
+            UpdateCameraFailure(opened ? CameraFailureKind.None : _cameraService.LastFailure);
+        }
 
         // Update overlay
         if (settings.ShowOverlay && _overlayWindow == null)
@@ -283,31 +324,110 @@ public partial class App : Application
         // Rebuild tray menu with new language
         if (_trayIcon != null)
         {
-            _trayIcon.ToolTipText = _localization.Get("tray.tooltip");
             _trayIcon.ContextMenu = CreateContextMenu();
         }
+
+        _cameraPreviewWindow?.ApplyLocalization(_localization);
+
+        RefreshStatusSurfaces();
     }
 
     private void StartMonitoringTimer(TimeSpan interval)
     {
         _timer?.Stop();
         _timer = new DispatcherTimer { Interval = interval };
-        _timer.Tick += (_, _) =>
-        {
-            _monitoringService?.Tick();
-            _statsService?.FlushActiveSessions();
-        };
+        _timer.Tick += OnMonitoringTimerTick;
         _timer.Start();
+    }
+
+    private async void OnMonitoringTimerTick(object? sender, EventArgs e)
+    {
+        var monitoringService = _monitoringService;
+        if (monitoringService == null)
+            return;
+
+        if (Interlocked.Exchange(ref _monitoringTickInProgress, 1) == 1)
+            return;
+
+        try
+        {
+            var result = await Task.Run(monitoringService.AnalyzeTick);
+            if (_isShuttingDown)
+                return;
+
+            if (result != null)
+            {
+                UpdateCameraFailure(CameraFailureKind.None);
+                monitoringService.ApplyTickResult(result);
+            }
+            else if (!monitoringService.IsPaused && _cameraService != null)
+            {
+                UpdateCameraFailure(_cameraService.LastFailure);
+            }
+
+            _statsService?.FlushActiveSessions();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(ex);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _monitoringTickInProgress, 0);
+        }
+    }
+
+    private void UpdateCameraFailure(CameraFailureKind failure)
+    {
+        if (failure == CameraFailureKind.None)
+        {
+            if (_cameraFailure == CameraFailureKind.None)
+                return;
+
+            _cameraFailure = CameraFailureKind.None;
+            RefreshStatusSurfaces();
+            return;
+        }
+
+        if (_cameraFailure == failure)
+            return;
+
+        _cameraFailure = failure;
+        RefreshStatusSurfaces();
+
+        if (_notificationService == null)
+            return;
+
+        if (failure == CameraFailureKind.OpenFailed)
+            _notificationService.NotifyCameraOpenFailed();
+        else if (failure == CameraFailureKind.ReadFailed)
+            _notificationService.NotifyCameraReadFailed();
+    }
+
+    private void RefreshStatusSurfaces()
+    {
+        if (_trayIcon != null && _localization != null)
+        {
+            _trayIcon.ToolTipText = _cameraFailure == CameraFailureKind.None
+                ? _localization.Get("tray.tooltip")
+                : _localization.Get("tray.tooltip.camera_issue");
+        }
+
+        if (_overlayWindow != null)
+            UpdateOverlay();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _isShuttingDown = true;
         _timer?.Stop();
         _overlayTimer?.Stop();
         _statsService?.FlushActiveSessions();
         _overlayWindow?.Close();
+        _cameraPreviewWindow?.Close();
         _frameRecorder?.Dispose();
         _trayIcon?.Dispose();
+        _personDetector?.Dispose();
         _cameraService?.Dispose();
         _statsRepo?.Dispose();
         base.OnExit(e);

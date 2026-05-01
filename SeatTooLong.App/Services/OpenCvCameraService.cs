@@ -3,60 +3,193 @@ using SeatTooLong.Core;
 
 namespace SeatTooLong.App.Services;
 
+public enum CameraFailureKind
+{
+    None,
+    OpenFailed,
+    ReadFailed
+}
+
 public class OpenCvCameraService : ICameraService
 {
-    private VideoCapture? _capture;
+    private const int MaxCameraProbeCount = 5;
+    private static readonly VideoCaptureAPIs[] CandidateBackends =
+    [
+        VideoCaptureAPIs.DSHOW,
+        VideoCaptureAPIs.MSMF,
+        VideoCaptureAPIs.ANY
+    ];
 
-    public bool IsAvailable => _capture != null && _capture.IsOpened();
+    private readonly object _gate = new();
+    private VideoCapture? _capture;
+    private int _preferredCameraIndex;
+
+    public CameraFailureKind LastFailure { get; private set; }
+
+    public bool IsAvailable
+    {
+        get
+        {
+            lock (_gate)
+                return _capture != null && _capture.IsOpened();
+        }
+    }
 
     public bool Open(int cameraIndex = 0)
     {
-        Close();
-        _capture = new VideoCapture(cameraIndex);
-        return _capture.IsOpened();
+        lock (_gate)
+        {
+            _preferredCameraIndex = cameraIndex;
+            return ReopenCore();
+        }
     }
 
     public void Close()
+    {
+        lock (_gate)
+            CloseCore();
+    }
+
+    public CapturedFrame? CaptureFrame()
+    {
+        lock (_gate)
+        {
+            if (!EnsureCaptureAvailable())
+                return null;
+
+            if (TryCaptureFrame(out var frame))
+                return frame;
+
+            if (!ReopenCore())
+                return null;
+
+            return TryCaptureFrame(out frame)
+                ? frame
+                : null;
+        }
+    }
+
+    public IReadOnlyList<string> EnumerateCameras()
+    {
+        foreach (var backend in CandidateBackends)
+        {
+            var cameraIndices = GetAvailableCameraIndices(backend);
+            if (cameraIndices.Count > 0)
+                return cameraIndices.Select(static index => $"Camera {index}").ToList();
+        }
+
+        return [];
+    }
+
+    public void Dispose()
+    {
+        Close();
+    }
+
+    private void CloseCore()
     {
         _capture?.Release();
         _capture?.Dispose();
         _capture = null;
     }
 
-    public CapturedFrame? CaptureFrame()
+    private bool EnsureCaptureAvailable()
     {
-        if (_capture == null || !_capture.IsOpened())
-            return null;
-
-        using var mat = new Mat();
-        if (!_capture.Read(mat) || mat.Empty())
-            return null;
-
-        var bytes = mat.ToBytes(".bmp");
-        return new CapturedFrame(bytes, mat.Width, mat.Height);
+        return (_capture != null && _capture.IsOpened()) || ReopenCore();
     }
 
-    public IReadOnlyList<string> EnumerateCameras()
+    private bool ReopenCore()
     {
-        var cameras = new List<string>();
-        for (int i = 0; i < 10; i++)
+        foreach (var cameraIndex in GetCandidateCameraIndices(_preferredCameraIndex))
         {
-            using var cap = new VideoCapture(i);
-            if (cap.IsOpened())
+            foreach (var backend in CandidateBackends)
             {
-                cameras.Add($"Camera {i}");
-                cap.Release();
-            }
-            else
-            {
-                break;
+                if (TryOpenCapture(cameraIndex, backend))
+                    return true;
             }
         }
-        return cameras;
+
+        CloseCore();
+        LastFailure = CameraFailureKind.OpenFailed;
+        return false;
     }
 
-    public void Dispose()
+    private bool TryCaptureFrame(out CapturedFrame? frame)
     {
-        Close();
+        frame = null;
+        if (_capture == null || !_capture.IsOpened())
+            return false;
+
+        using var mat = new Mat();
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            if (_capture.Read(mat) && !mat.Empty())
+            {
+                var bytes = mat.ToBytes(".bmp");
+                LastFailure = CameraFailureKind.None;
+                frame = new CapturedFrame(bytes, mat.Width, mat.Height);
+                return true;
+            }
+        }
+
+        LastFailure = CameraFailureKind.ReadFailed;
+        return false;
+    }
+
+    private bool TryOpenCapture(int cameraIndex, VideoCaptureAPIs backend)
+    {
+        CloseCore();
+
+        var capture = backend == VideoCaptureAPIs.ANY
+            ? new VideoCapture(cameraIndex)
+            : new VideoCapture(cameraIndex, backend);
+
+        if (!capture.IsOpened())
+        {
+            capture.Release();
+            capture.Dispose();
+            return false;
+        }
+
+        _capture = capture;
+        LastFailure = CameraFailureKind.None;
+        return true;
+    }
+
+    private static bool CanOpenCamera(int cameraIndex, VideoCaptureAPIs backend)
+    {
+        using var capture = backend == VideoCaptureAPIs.ANY
+            ? new VideoCapture(cameraIndex)
+            : new VideoCapture(cameraIndex, backend);
+
+        if (!capture.IsOpened())
+            return false;
+
+        capture.Release();
+        return true;
+    }
+
+    private static List<int> GetAvailableCameraIndices(VideoCaptureAPIs backend)
+    {
+        var cameraIndices = new List<int>();
+        for (int cameraIndex = 0; cameraIndex < MaxCameraProbeCount; cameraIndex++)
+        {
+            if (CanOpenCamera(cameraIndex, backend))
+                cameraIndices.Add(cameraIndex);
+        }
+
+        return cameraIndices;
+    }
+
+    private static IEnumerable<int> GetCandidateCameraIndices(int preferredIndex)
+    {
+        if (preferredIndex >= 0 && preferredIndex < MaxCameraProbeCount)
+            yield return preferredIndex;
+
+        for (int cameraIndex = 0; cameraIndex < MaxCameraProbeCount; cameraIndex++)
+        {
+            if (cameraIndex != preferredIndex)
+                yield return cameraIndex;
+        }
     }
 }

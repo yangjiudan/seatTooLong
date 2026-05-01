@@ -48,4 +48,28 @@ public class LocalizationServiceTests
         var template = svc.Get("notify.sit_too_long.title");
         Assert.Contains("{0}", template);
     }
+
+    [Fact]
+    public void CameraIssueStrings_AreLocalized()
+    {
+        var zh = new LocalizationService("zh");
+        var en = new LocalizationService("en");
+
+        Assert.Equal("摄像头异常", zh.Get("overlay.camera_issue"));
+        Assert.Equal("Camera issue", en.Get("overlay.camera_issue"));
+        Assert.Contains("摄像头", zh.Get("tray.tooltip.camera_issue"));
+        Assert.Contains("Camera", en.Get("tray.tooltip.camera_issue"));
+    }
+
+    [Fact]
+    public void PreviewStrings_AreLocalized()
+    {
+        var zh = new LocalizationService("zh");
+        var en = new LocalizationService("en");
+
+        Assert.Equal("预览当前摄像头", zh.Get("tray.preview"));
+        Assert.Equal("Preview Camera", en.Get("tray.preview"));
+        Assert.Equal("当前摄像头预览", zh.Get("camera.preview.title"));
+        Assert.Equal("Current Camera Preview", en.Get("camera.preview.title"));
+    }
 }

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260427" />
   </ItemGroup>
 
 </Project>

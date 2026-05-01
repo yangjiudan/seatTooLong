@@ -39,4 +39,22 @@ public class NotificationMessageBuilderTests
 
         Assert.Contains("3", msg.Body);
     }
+
+    [Fact]
+    public void BuildCameraOpenFailedMessage_ShouldExplainPossibleCauses()
+    {
+        var msg = NotificationMessageBuilder.BuildCameraOpenFailedMessage("zh");
+
+        Assert.Contains("摄像头", msg.Title);
+        Assert.Contains("被占用", msg.Body);
+    }
+
+    [Fact]
+    public void BuildCameraReadFailedMessage_English_ShouldMentionMonitoring()
+    {
+        var msg = NotificationMessageBuilder.BuildCameraReadFailedMessage("en");
+
+        Assert.Contains("camera", msg.Title, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("monitoring", msg.Body, StringComparison.OrdinalIgnoreCase);
+    }
 }
