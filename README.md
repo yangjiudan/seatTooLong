@@ -16,10 +16,19 @@
 ## 系统要求
 
 - Windows 10 1903+ / Windows 11
-- .NET 8.0 Runtime
 - USB 摄像头
 
+使用官方安装包时已自带 .NET 8 运行时，无需用户额外安装 .NET。
+
 ## 快速开始
+
+### 安装包安装
+
+1. 下载 `SeatTooLong-Setup-x64.exe`
+2. 双击运行安装程序，按向导完成安装
+3. 从开始菜单启动 `SeatTooLong`
+
+启动后应用自动最小化到系统托盘，右键托盘图标可打开主界面、统计报表和设置。
 
 ### 从源码构建
 
@@ -47,6 +56,25 @@ dotnet run --project SeatTooLong.App
 
 ```bash
 dotnet test SeatTooLong.Tests
+```
+
+### 构建安装包
+
+生成安装包需要：
+
+- .NET 8 SDK
+- Inno Setup 6
+
+```powershell
+.\scripts\build-installer.ps1 -Clean
+```
+
+脚本会先发布 self-contained 的 `win-x64` 应用到 `artifacts\publish\win-x64`，再通过 Inno Setup 生成 `artifacts\installer\SeatTooLong-Setup-x64.exe`。
+
+如果 `ISCC.exe` 不在 `PATH` 或默认安装目录中，可以显式传入路径：
+
+```powershell
+.\scripts\build-installer.ps1 -InnoSetupCompiler "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
 
 ## 项目结构
