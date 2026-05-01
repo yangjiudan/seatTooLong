@@ -22,6 +22,7 @@ SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
+SetupIconFile=seattoolong-installer.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 PrivilegesRequired=admin
 SetupLogging=yes

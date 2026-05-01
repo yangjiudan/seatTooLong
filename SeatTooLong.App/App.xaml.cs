@@ -140,9 +140,20 @@ public partial class App : Application
         _trayIcon = new TaskbarIcon
         {
             ToolTipText = _localization!.Get("tray.tooltip"),
-            Icon = System.Drawing.SystemIcons.Information,
+            Icon = LoadTrayIcon(),
             ContextMenu = CreateContextMenu()
         };
+    }
+
+    private static System.Drawing.Icon LoadTrayIcon()
+    {
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "seattoolong-app.ico");
+        if (File.Exists(iconPath))
+        {
+            return new System.Drawing.Icon(iconPath);
+        }
+
+        return System.Drawing.SystemIcons.Information;
     }
 
     private System.Windows.Controls.ContextMenu CreateContextMenu()

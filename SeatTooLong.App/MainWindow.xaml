@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:SeatTooLong.App"
         mc:Ignorable="d"
         Title="SeatTooLong" Height="200" Width="350"
+        Icon="Assets/Icons/seattoolong-app.ico"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize">
     <Grid Margin="20">
