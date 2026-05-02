@@ -1,42 +1,51 @@
 namespace SeatTooLong.Core.Settings;
 
+public sealed record CameraOption(string DeviceName, int DeviceIndex);
+
 public static class CameraSelection
 {
-    public static int GetSelectedOptionIndex(IReadOnlyList<string> cameras, int actualCameraIndex)
+    public static int GetSelectedOptionIndex(IReadOnlyList<CameraOption> cameras, string? selectedCameraName, int fallbackCameraIndex = 0)
     {
         if (cameras.Count == 0)
             return -1;
 
+        if (!string.IsNullOrWhiteSpace(selectedCameraName))
+        {
+            for (int index = 0; index < cameras.Count; index++)
+            {
+                if (string.Equals(cameras[index].DeviceName, selectedCameraName, StringComparison.Ordinal))
+                    return index;
+            }
+        }
+
         for (int index = 0; index < cameras.Count; index++)
         {
-            if (TryParseCameraIndex(cameras[index], out var cameraIndex) && cameraIndex == actualCameraIndex)
+            if (cameras[index].DeviceIndex == fallbackCameraIndex)
                 return index;
         }
 
         return 0;
     }
 
-    public static int ResolveCameraIndex(IReadOnlyList<string> cameras, int selectedIndex, int fallback = 0)
+    public static string ResolveSelectedCameraName(IReadOnlyList<CameraOption> cameras, int selectedIndex, string fallbackName = "")
     {
         if (selectedIndex < 0 || selectedIndex >= cameras.Count)
-            return fallback;
+            return fallbackName;
 
-        return TryParseCameraIndex(cameras[selectedIndex], out var cameraIndex)
-            ? cameraIndex
-            : fallback;
+        return cameras[selectedIndex].DeviceName;
     }
 
-    private static bool TryParseCameraIndex(string? cameraLabel, out int cameraIndex)
+    public static int ResolveCameraIndex(IReadOnlyList<CameraOption> cameras, string? cameraName, int fallback = 0)
     {
-        cameraIndex = 0;
-        if (string.IsNullOrWhiteSpace(cameraLabel))
-            return false;
+        if (!string.IsNullOrWhiteSpace(cameraName))
+        {
+            for (int index = 0; index < cameras.Count; index++)
+            {
+                if (string.Equals(cameras[index].DeviceName, cameraName, StringComparison.Ordinal))
+                    return cameras[index].DeviceIndex;
+            }
+        }
 
-        var lastSpaceIndex = cameraLabel.LastIndexOf(' ');
-        var numericPart = lastSpaceIndex >= 0
-            ? cameraLabel[(lastSpaceIndex + 1)..]
-            : cameraLabel;
-
-        return int.TryParse(numericPart, out cameraIndex);
+        return fallback;
     }
 }

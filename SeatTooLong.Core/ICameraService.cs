@@ -1,5 +1,7 @@
 namespace SeatTooLong.Core;
 
+using SeatTooLong.Core.Settings;
+
 public record CapturedFrame(byte[] Data, int Width, int Height);
 
 public interface ICameraService : IDisposable
@@ -8,5 +10,5 @@ public interface ICameraService : IDisposable
     bool Open(int cameraIndex = 0);
     void Close();
     CapturedFrame? CaptureFrame();
-    IReadOnlyList<string> EnumerateCameras();
+    IReadOnlyList<CameraOption> EnumerateCameras();
 }

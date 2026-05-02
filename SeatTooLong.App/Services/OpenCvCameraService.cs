@@ -1,5 +1,7 @@
 using OpenCvSharp;
 using SeatTooLong.Core;
+using SeatTooLong.Core.Settings;
+using Windows.Devices.Enumeration;
 
 namespace SeatTooLong.App.Services;
 
@@ -69,13 +71,15 @@ public class OpenCvCameraService : ICameraService
         }
     }
 
-    public IReadOnlyList<string> EnumerateCameras()
+    public IReadOnlyList<CameraOption> EnumerateCameras()
     {
+        var deviceNames = GetVideoCaptureDeviceNames();
+
         foreach (var backend in CandidateBackends)
         {
             var cameraIndices = GetAvailableCameraIndices(backend);
             if (cameraIndices.Count > 0)
-                return cameraIndices.Select(static index => $"Camera {index}").ToList();
+                return BuildCameraOptions(cameraIndices, deviceNames);
         }
 
         return [];
@@ -179,6 +183,65 @@ public class OpenCvCameraService : ICameraService
         }
 
         return cameraIndices;
+    }
+
+    private static string GetCameraName(int cameraIndex, IReadOnlyList<string> deviceNames)
+    {
+        if (cameraIndex >= 0 && cameraIndex < deviceNames.Count && !string.IsNullOrWhiteSpace(deviceNames[cameraIndex]))
+            return deviceNames[cameraIndex];
+
+        return $"Camera {cameraIndex}";
+    }
+
+    private static IReadOnlyList<string> GetVideoCaptureDeviceNames()
+    {
+        try
+        {
+            var devices = DeviceInformation.FindAllAsync(DeviceClass.VideoCapture)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+
+            return devices
+                .Select(static device => string.IsNullOrWhiteSpace(device.Name) ? "Unknown Camera" : device.Name)
+                .ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static IReadOnlyList<CameraOption> BuildCameraOptions(IReadOnlyList<int> cameraIndices, IReadOnlyList<string> deviceNames)
+    {
+        if (deviceNames.Count == 0)
+            return cameraIndices.Select(index => new CameraOption($"Camera {index}", index)).ToList();
+
+        var alignedIndices = cameraIndices
+            .Where(index => index >= 0 && index < deviceNames.Count)
+            .ToList();
+
+        // OpenCV can expose alias indices for one physical device (e.g. 0 and 4).
+        // When device names are available, prefer one item per known device.
+        if (alignedIndices.Count > 0)
+        {
+            return alignedIndices
+                .Select(index => new CameraOption(GetCameraName(index, deviceNames), index))
+                .ToList();
+        }
+
+        var mappedCount = Math.Min(cameraIndices.Count, deviceNames.Count);
+        var mapped = new List<CameraOption>(mappedCount);
+        for (int index = 0; index < mappedCount; index++)
+        {
+            var cameraIndex = cameraIndices[index];
+            var cameraName = string.IsNullOrWhiteSpace(deviceNames[index])
+                ? $"Camera {cameraIndex}"
+                : deviceNames[index];
+            mapped.Add(new CameraOption(cameraName, cameraIndex));
+        }
+
+        return mapped;
     }
 
     private static IEnumerable<int> GetCandidateCameraIndices(int preferredIndex)

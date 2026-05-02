@@ -75,7 +75,10 @@ public partial class App : Application
         var profileFaceCascadePath = Path.Combine(AppContext.BaseDirectory, "haarcascade_profileface.xml");
         var upperBodyCascadePath = Path.Combine(AppContext.BaseDirectory, "haarcascade_upperbody.xml");
         _personDetector = new DnnDeskPresenceDetector(faceModelPath, profileFaceCascadePath, upperBodyCascadePath);
-        var cameraOpened = _cameraService.Open(_currentSettings.CameraIndex);
+        var availableCameras = _cameraService.EnumerateCameras();
+        var cameraIndex = CameraSelection.ResolveCameraIndex(availableCameras, _currentSettings.CameraDeviceName, _currentSettings.CameraIndex);
+        _currentSettings.CameraIndex = cameraIndex;
+        var cameraOpened = _cameraService.Open(cameraIndex);
 
         _monitoringService = new MonitoringService(
             _cameraService, _personDetector, _monitorOptions, timeProvider, _notificationService, _frameRecorder);
@@ -251,7 +254,7 @@ public partial class App : Application
 
     private void ShowSettings()
     {
-        var cameras = _cameraService?.EnumerateCameras() ?? new List<string>();
+        var cameras = _cameraService?.EnumerateCameras() ?? new List<CameraOption>();
         var win = new SettingsWindow(_settingsService!, _localization!, cameras);
         win.SettingsSaved += OnSettingsSaved;
         win.Show();
@@ -280,7 +283,9 @@ public partial class App : Application
 
     private void OnSettingsSaved(AppSettings settings)
     {
-        var previousCameraIndex = _currentSettings.CameraIndex;
+        var cameras = _cameraService?.EnumerateCameras() ?? [];
+        var previousCameraIndex = CameraSelection.ResolveCameraIndex(cameras, _currentSettings.CameraDeviceName, _currentSettings.CameraIndex);
+        settings.CameraIndex = CameraSelection.ResolveCameraIndex(cameras, settings.CameraDeviceName, settings.CameraIndex);
         _currentSettings = settings;
 
         // Update localization

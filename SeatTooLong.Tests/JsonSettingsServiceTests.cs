@@ -43,6 +43,7 @@ public class JsonSettingsServiceTests : IDisposable
             DetectionIntervalSeconds = 3,
             AbsenceGracePeriodSeconds = 12,
             CameraIndex = 2,
+            CameraDeviceName = "USB Camera",
             AutoStart = false,
             Language = "en",
             ShowOverlay = false,
@@ -57,6 +58,7 @@ public class JsonSettingsServiceTests : IDisposable
         Assert.Equal(3, loaded.DetectionIntervalSeconds);
         Assert.Equal(12, loaded.AbsenceGracePeriodSeconds);
         Assert.Equal(2, loaded.CameraIndex);
+        Assert.Equal("USB Camera", loaded.CameraDeviceName);
         Assert.False(loaded.AutoStart);
         Assert.Equal("en", loaded.Language);
         Assert.False(loaded.ShowOverlay);

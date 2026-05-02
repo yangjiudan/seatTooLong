@@ -9,10 +9,10 @@ public partial class SettingsWindow : Window
 {
     private readonly ISettingsService _settingsService;
     private readonly ILocalizationService _localization;
-    private readonly IReadOnlyList<string> _cameras;
+    private readonly IReadOnlyList<CameraOption> _cameras;
     public event Action<AppSettings>? SettingsSaved;
 
-    public SettingsWindow(ISettingsService settingsService, ILocalizationService localization, IReadOnlyList<string> cameras)
+    public SettingsWindow(ISettingsService settingsService, ILocalizationService localization, IReadOnlyList<CameraOption> cameras)
     {
         InitializeComponent();
         _settingsService = settingsService;
@@ -42,9 +42,9 @@ public partial class SettingsWindow : Window
 
         CmbCamera.Items.Clear();
         for (int index = 0; index < _cameras.Count; index++)
-            CmbCamera.Items.Add(_cameras[index]);
+            CmbCamera.Items.Add(_cameras[index].DeviceName);
         if (_cameras.Count > 0)
-            CmbCamera.SelectedIndex = CameraSelection.GetSelectedOptionIndex(_cameras, settings.CameraIndex);
+            CmbCamera.SelectedIndex = CameraSelection.GetSelectedOptionIndex(_cameras, settings.CameraDeviceName, settings.CameraIndex);
 
         UpdateValueLabels();
     }
@@ -93,7 +93,11 @@ public partial class SettingsWindow : Window
             RestDurationMinutes = (int)SliderRestDuration.Value,
             DetectionIntervalSeconds = int.Parse(((ComboBoxItem)CmbInterval.SelectedItem).Content.ToString()!),
             AbsenceGracePeriodSeconds = (int)SliderAbsenceGracePeriod.Value,
-            CameraIndex = CameraSelection.ResolveCameraIndex(_cameras, CmbCamera.SelectedIndex),
+            CameraDeviceName = CameraSelection.ResolveSelectedCameraName(_cameras, CmbCamera.SelectedIndex),
+            CameraIndex = CameraSelection.ResolveCameraIndex(
+                _cameras,
+                CameraSelection.ResolveSelectedCameraName(_cameras, CmbCamera.SelectedIndex),
+                fallback: 0),
             AutoStart = ChkAutoStart.IsChecked == true,
             Language = ((ComboBoxItem)CmbLanguage.SelectedItem).Tag?.ToString() ?? "zh",
             ShowOverlay = ChkOverlay.IsChecked == true,
