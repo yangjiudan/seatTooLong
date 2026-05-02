@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve release version from tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(\d+)\.(\d+)\.(\d+)$') {
+            throw "Tag must match vX.Y.Z. Actual: $tag"
+          }
+
+          $version = $tag.Substring(1)
+          $releaseDate = Get-Date -Format 'yyyy-MM-dd'
+          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_DATE=$releaseDate" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Release version resolved from tag: $version"
+
+      - name: Ensure tag commit is on main
+        shell: pwsh
+        run: |
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor ${{ github.sha }} origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Release is only allowed for tags that point to commits on origin/main. Current tag: ${{ github.ref_name }}"
+          }
+          Write-Host "Tag commit is confirmed on origin/main"
+
+      - name: Run unit tests
+        run: dotnet test SeatTooLong.Tests --verbosity minimal
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          .\scripts\build-installer.ps1 -Version $env:RELEASE_VERSION -Clean
+
+      - name: Verify installer output
+        shell: pwsh
+        run: |
+          $installer = "artifacts/installer/SeatTooLong-Setup-x64-$env:RELEASE_VERSION.exe"
+          if (-not (Test-Path $installer)) {
+            throw "Expected installer was not found: $installer"
+          }
+          Write-Host "Installer ready: $installer"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SeatTooLong v${{ env.RELEASE_VERSION }} (${{ env.RELEASE_DATE }})
+          generate_release_notes: true
+          files: |
+            artifacts/installer/SeatTooLong-Setup-x64-${{ env.RELEASE_VERSION }}.exe

@@ -46,6 +46,7 @@ dotnet run --project SeatTooLong.App
 ```
 
 启动后应用自动最小化到系统托盘，右键托盘图标可：
+
 - 打开主界面 / 统计报表
 - 暂停 / 恢复监测
 - 开始 / 停止录制检测优化素材
@@ -86,13 +87,29 @@ dotnet test SeatTooLong.Tests
 - `dotnet build/publish` 会自动使用该版本写入程序集版本元数据
 - `build-installer.ps1` 默认从 `Directory.Build.props` 读取版本并通过 `/DMyAppVersion=...` 注入安装脚本
 
-发布新版本时，通常只需要修改 `Directory.Build.props` 中的 `<AppVersion>`，然后重新执行安装包构建脚本。
+本地手动构建时，通常只需要修改 `Directory.Build.props` 中的 `<AppVersion>`，然后重新执行安装包构建脚本。
 
 如需临时覆盖版本（例如 CI 构建号），可以显式传入：
 
 ```powershell
 .\scripts\build-installer.ps1 -Version 1.2.3
 ```
+
+### 自动版本发布（GitHub Actions）
+
+- 发布触发方式：推送版本 Tag（格式：`vX.Y.Z`，例如 `v1.2.3`）
+- Tag 必须指向 `origin/main` 上的提交
+- 自动发布时版本来源：推送的 Tag（去掉 `v` 后作为发布版本）
+- 发布目标：GitHub Releases
+
+发布工作流会自动执行：
+
+1. 校验 Tag 格式
+2. 运行 `dotnet test SeatTooLong.Tests --verbosity minimal`
+3. 调用 `scripts/build-installer.ps1 -Version <tag-version> -Clean` 构建安装包
+4. 创建 GitHub Release（标题：`SeatTooLong v<版本号> (YYYY-MM-DD)`）并上传 `SeatTooLong-Setup-x64-<版本号>.exe`
+
+完整说明见 `doc/RELEASE.md`。
 
 ## 项目结构
 
