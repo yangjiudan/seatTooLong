@@ -25,7 +25,7 @@
 
 ### 安装包安装
 
-1. 下载 `SeatTooLong-Setup-x64.exe`
+1. 下载 `SeatTooLong-Setup-x64-<版本号>.exe`
 2. 双击运行安装程序，按向导完成安装
 3. 从开始菜单启动 `SeatTooLong`
 
@@ -46,7 +46,6 @@ dotnet run --project SeatTooLong.App
 ```
 
 启动后应用自动最小化到系统托盘，右键托盘图标可：
-
 - 打开主界面 / 统计报表
 - 暂停 / 恢复监测
 - 开始 / 停止录制检测优化素材
@@ -71,7 +70,7 @@ dotnet test SeatTooLong.Tests
 .\scripts\build-installer.ps1 -Clean
 ```
 
-脚本会先发布 self-contained 的 `win-x64` 应用到 `artifacts\publish\win-x64`，再通过 Inno Setup 生成 `artifacts\installer\SeatTooLong-Setup-x64.exe`。
+脚本会先发布 self-contained 的 `win-x64` 应用到 `artifacts\publish\win-x64`，再通过 Inno Setup 生成 `artifacts\installer\SeatTooLong-Setup-x64-<版本号>.exe`。
 
 构建安装包时会根据 `installer\ChineseSimplified.messages.json` 自动生成简体中文 Inno Setup 语言文件到 `artifacts\installer-languages\ChineseSimplified.generated.isl`。
 
@@ -79,6 +78,20 @@ dotnet test SeatTooLong.Tests
 
 ```powershell
 .\scripts\build-installer.ps1 -InnoSetupCompiler "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+```
+
+### 版本号管理
+
+- 项目版本单一来源为仓库根目录 `Directory.Build.props` 的 `<AppVersion>`（SemVer：`X.Y.Z`）
+- `dotnet build/publish` 会自动使用该版本写入程序集版本元数据
+- `build-installer.ps1` 默认从 `Directory.Build.props` 读取版本并通过 `/DMyAppVersion=...` 注入安装脚本
+
+发布新版本时，通常只需要修改 `Directory.Build.props` 中的 `<AppVersion>`，然后重新执行安装包构建脚本。
+
+如需临时覆盖版本（例如 CI 构建号），可以显式传入：
+
+```powershell
+.\scripts\build-installer.ps1 -Version 1.2.3
 ```
 
 ## 项目结构

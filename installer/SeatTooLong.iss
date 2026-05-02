@@ -1,7 +1,12 @@
 #define MyAppName "SeatTooLong"
 #define MyAppExeName "SeatTooLong.App.exe"
 #define MyAppPublisher "SeatTooLong"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+	#define MyAppVersion "0.0.0"
+#endif
+#ifndef MyOutputBaseFilename
+	#define MyOutputBaseFilename "SeatTooLong-Setup-x64-" + MyAppVersion
+#endif
 #define MyAppId "{{8E7C5C88-8D31-4C4F-8D0F-4F0A9C64F63E}"
 #define MyAppUserModelId "SeatTooLong.SeatTooLong"
 #define SourceDir "..\artifacts\publish\win-x64"
@@ -16,7 +21,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=SeatTooLong-Setup-x64
+OutputBaseFilename={#MyOutputBaseFilename}
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible

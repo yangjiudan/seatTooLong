@@ -4,7 +4,9 @@ param(
 
     [string]$Configuration = 'Release',
 
-    [switch]$Clean
+    [switch]$Clean,
+
+    [string]$Version
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,12 +23,25 @@ if ($Clean -and (Test-Path $publishDir)) {
 New-Item -ItemType Directory -Force -Path $publishDir | Out-Null
 
 Write-Host "Publishing SeatTooLong for $RuntimeIdentifier..."
-dotnet publish $appProject `
-    --configuration $Configuration `
-    --runtime $RuntimeIdentifier `
-    --self-contained true `
-    --output $publishDir `
-    -p:PublishSingleFile=false
+$publishArgs = @(
+    'publish', $appProject,
+    '--configuration', $Configuration,
+    '--runtime', $RuntimeIdentifier,
+    '--self-contained', 'true',
+    '--output', $publishDir,
+    '-p:PublishSingleFile=false'
+)
+
+if ($Version) {
+    $publishArgs += @(
+        "-p:Version=$Version",
+        "-p:AssemblyVersion=$Version",
+        "-p:FileVersion=$Version",
+        "-p:InformationalVersion=$Version"
+    )
+}
+
+dotnet @publishArgs
 
 $requiredFiles = @(
     'SeatTooLong.App.exe',

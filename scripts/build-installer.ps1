@@ -6,10 +6,40 @@ param(
 
     [switch]$Clean,
 
-    [string]$InnoSetupCompiler
+    [string]$InnoSetupCompiler,
+
+    [string]$Version
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Get-AppVersionFromProps {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PropsPath
+    )
+
+    if (-not (Test-Path $PropsPath)) {
+        throw "Version source file was not found: $PropsPath"
+    }
+
+    [xml]$props = Get-Content -Path $PropsPath -Raw
+    $versionNode = $props.SelectSingleNode('//AppVersion')
+    if (-not $versionNode -or [string]::IsNullOrWhiteSpace($versionNode.InnerText)) {
+        throw "Directory.Build.props must define a non-empty <AppVersion>."
+    }
+
+    return $versionNode.InnerText.Trim()
+}
+
+function Test-SemVer {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    return $Value -match '^\d+\.\d+\.\d+$'
+}
 
 function Set-IslEntry {
     param(
@@ -72,6 +102,7 @@ function New-ChineseSimplifiedInnoMessagesFile {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$versionPropsPath = Join-Path $repoRoot 'Directory.Build.props'
 $publishScript = Join-Path $PSScriptRoot 'publish-win.ps1'
 $installerDir = Join-Path $repoRoot 'installer'
 $installerScript = Join-Path $repoRoot 'installer\SeatTooLong.iss'
@@ -80,7 +111,17 @@ $installerLanguageDir = Join-Path $repoRoot 'artifacts\installer-languages'
 $translationsFile = Join-Path $repoRoot 'installer\ChineseSimplified.messages.json'
 $chineseMessagesFile = Join-Path $installerLanguageDir 'ChineseSimplified.generated.isl'
 
-& $publishScript -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -Clean:$Clean
+if (-not $Version) {
+    $Version = Get-AppVersionFromProps -PropsPath $versionPropsPath
+}
+
+if (-not (Test-SemVer -Value $Version)) {
+    throw "Version must follow SemVer X.Y.Z. Actual: $Version"
+}
+
+$outputBaseFileName = "SeatTooLong-Setup-x64-$Version"
+
+& $publishScript -RuntimeIdentifier $RuntimeIdentifier -Configuration $Configuration -Clean:$Clean -Version $Version
 
 if (-not $InnoSetupCompiler) {
     $command = Get-Command 'ISCC.exe' -ErrorAction SilentlyContinue
@@ -108,13 +149,13 @@ New-ChineseSimplifiedInnoMessagesFile -InnoSetupCompiler $InnoSetupCompiler -Tra
 Write-Host "Building installer with $InnoSetupCompiler..."
 Push-Location $installerDir
 try {
-    & $InnoSetupCompiler $installerScript
+    & $InnoSetupCompiler "/DMyAppVersion=$Version" "/DMyOutputBaseFilename=$outputBaseFileName" $installerScript
 }
 finally {
     Pop-Location
 }
 
-$setupPath = Join-Path $installerOutput 'SeatTooLong-Setup-x64.exe'
+$setupPath = Join-Path $installerOutput "$outputBaseFileName.exe"
 if (-not (Test-Path $setupPath)) {
     throw "Installer was not created: $setupPath"
 }

@@ -72,4 +72,20 @@ public class LocalizationServiceTests
         Assert.Equal("当前摄像头预览", zh.Get("camera.preview.title"));
         Assert.Equal("Current Camera Preview", en.Get("camera.preview.title"));
     }
+
+    [Fact]
+    public void AboutStrings_AreLocalized()
+    {
+        var zh = new LocalizationService("zh");
+        var en = new LocalizationService("en");
+
+        Assert.Equal("关于", zh.Get("tray.about"));
+        Assert.Equal("About", en.Get("tray.about"));
+        Assert.Contains("{0}", zh.Get("about.version"));
+        Assert.Contains("{1}", zh.Get("about.version"));
+        Assert.Contains("{0}", en.Get("about.version"));
+        Assert.Contains("{1}", en.Get("about.version"));
+        Assert.Equal("关闭", zh.Get("about.close"));
+        Assert.Equal("Close", en.Get("about.close"));
+    }
 }

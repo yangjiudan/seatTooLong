@@ -34,6 +34,7 @@ public partial class App : Application
     private CameraFailureKind _cameraFailure = CameraFailureKind.None;
     private int _monitoringTickInProgress;
     private bool _isShuttingDown;
+    private string _appVersion = "unknown";
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -48,6 +49,7 @@ public partial class App : Application
 
         // Localization
         _localization = new LocalizationService(_currentSettings.Language);
+        _appVersion = AppVersionProvider.GetVersion(typeof(App).Assembly);
 
         // Statistics
         _statsRepo = new SqliteStatisticsRepository($"Data Source={Path.Combine(appDataDir, "stats.db")}");
@@ -206,6 +208,9 @@ public partial class App : Application
         var settingsItem = new System.Windows.Controls.MenuItem { Header = _localization.Get("tray.settings") };
         settingsItem.Click += (_, _) => ShowSettings();
 
+        var aboutItem = new System.Windows.Controls.MenuItem { Header = _localization.Get("tray.about") };
+        aboutItem.Click += (_, _) => ShowAboutDeferred();
+
         var exitItem = new System.Windows.Controls.MenuItem { Header = _localization.Get("tray.exit") };
         exitItem.Click += (_, _) => Shutdown();
 
@@ -216,6 +221,7 @@ public partial class App : Application
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Items.Add(todayItem);
         menu.Items.Add(settingsItem);
+        menu.Items.Add(aboutItem);
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Items.Add(exitItem);
 
@@ -258,6 +264,21 @@ public partial class App : Application
         var win = new SettingsWindow(_settingsService!, _localization!, cameras);
         win.SettingsSaved += OnSettingsSaved;
         win.Show();
+    }
+
+    private void ShowAboutDeferred()
+    {
+        Dispatcher.BeginInvoke(ShowAboutDialog, DispatcherPriority.ApplicationIdle);
+    }
+
+    private void ShowAboutDialog()
+    {
+        if (_localization == null)
+            return;
+
+        var appName = _localization.Get("app.name");
+        var win = new AboutWindow(appName, _appVersion, _localization);
+        win.ShowDialog();
     }
 
     private void ShowCameraPreview()
