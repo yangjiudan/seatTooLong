@@ -2,6 +2,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
+using Microsoft.Win32;
 using SeatTooLong.App.Services;
 using SeatTooLong.App.Views;
 using SeatTooLong.Core;
@@ -20,6 +21,7 @@ public partial class App : Application
     private DispatcherTimer? _overlayTimer;
     private OpenCvCameraService? _cameraService;
     private OverlayWindow? _overlayWindow;
+    private AlertPopupWindow? _alertPopupWindow;
     private CameraPreviewWindow? _cameraPreviewWindow;
     private SqliteStatisticsRepository? _statsRepo;
     private StatisticsService? _statsService;
@@ -30,6 +32,8 @@ public partial class App : Application
     private ToastNotificationService? _notificationService;
     private FileFrameRecorder? _frameRecorder;
     private DnnDeskPresenceDetector? _personDetector;
+    private ITimeProvider? _timeProvider;
+    private readonly AlertReminderCoordinator _alertReminderCoordinator = new(TimeSpan.FromSeconds(75));
     private AppSettings _currentSettings = new();
     private CameraFailureKind _cameraFailure = CameraFailureKind.None;
     private int _monitoringTickInProgress;
@@ -55,6 +59,7 @@ public partial class App : Application
         _statsRepo = new SqliteStatisticsRepository($"Data Source={Path.Combine(appDataDir, "stats.db")}");
         _statsRepo.Initialize();
         var timeProvider = new SystemTimeProvider();
+        _timeProvider = timeProvider;
         _statsService = new StatisticsService(_statsRepo, timeProvider);
 
         // Auto-start
@@ -90,12 +95,14 @@ public partial class App : Application
         {
             var oldState = GetPreviousState(newState);
             _statsService.OnStateChanged(oldState, newState);
+            HandleAlertReminderStateChanged(newState);
         };
 
         // Tray
         SetupTrayIcon();
         UpdateCameraFailure(cameraOpened ? CameraFailureKind.None : _cameraService.LastFailure);
         StartMonitoringTimer(TimeSpan.FromSeconds(_currentSettings.DetectionIntervalSeconds));
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         // Overlay
         if (_currentSettings.ShowOverlay)
@@ -126,6 +133,68 @@ public partial class App : Application
         _overlayTimer?.Stop();
         _overlayWindow?.Close();
         _overlayWindow = null;
+    }
+
+    private void HandleAlertReminderStateChanged(SittingState newState)
+    {
+        if (_timeProvider == null)
+            return;
+
+        ExecuteAlertReminderAction(_alertReminderCoordinator.OnStateChanged(newState, _timeProvider.Now));
+    }
+
+    private void UpdateAlertReminder()
+    {
+        if (_monitoringService == null || _timeProvider == null || _monitoringService.IsPaused)
+            return;
+
+        ExecuteAlertReminderAction(_alertReminderCoordinator.OnTick(_monitoringService.Monitor.CurrentState, _timeProvider.Now));
+    }
+
+    private void ExecuteAlertReminderAction(AlertReminderAction action)
+    {
+        switch (action)
+        {
+            case AlertReminderAction.Show:
+                ShowAlertPopup();
+                break;
+            case AlertReminderAction.Hide:
+                HideAlertPopup();
+                break;
+        }
+    }
+
+    private void ShowAlertPopup()
+    {
+        if (_monitoringService == null || _localization == null || _monitorOptions == null)
+            return;
+
+        var message = NotificationMessageBuilder.BuildSitTooLongMessage(
+            _monitoringService.Monitor.CurrentSittingDuration,
+            _monitorOptions.RestDuration,
+            _localization.CurrentLanguage);
+
+        _alertPopupWindow ??= new AlertPopupWindow();
+        _alertPopupWindow.ShowAlert(message.Title, message.Body, _localization.Get("notify.dismiss"));
+    }
+
+    private void HideAlertPopup()
+    {
+        _alertPopupWindow?.HideAlert();
+    }
+
+    private void ResetAlertReminder()
+    {
+        _alertReminderCoordinator.Reset();
+        HideAlertPopup();
+    }
+
+    private void RefreshAlertPopup()
+    {
+        if (_alertPopupWindow?.IsVisible != true)
+            return;
+
+        ShowAlertPopup();
     }
 
     private void UpdateOverlay()
@@ -189,6 +258,11 @@ public partial class App : Application
             pauseItem.Header = _monitoringService.IsPaused
                 ? _localization.Get("tray.resume")
                 : _localization.Get("tray.pause");
+
+            if (_monitoringService.IsPaused)
+                ResetAlertReminder();
+            else
+                HandleAlertReminderStateChanged(_monitoringService.Monitor.CurrentState);
         };
 
         var recordItem = new System.Windows.Controls.MenuItem
@@ -354,6 +428,7 @@ public partial class App : Application
         }
 
         _cameraPreviewWindow?.ApplyLocalization(_localization);
+        RefreshAlertPopup();
 
         RefreshStatusSurfaces();
     }
@@ -391,6 +466,7 @@ public partial class App : Application
                 UpdateCameraFailure(_cameraService.LastFailure);
             }
 
+            UpdateAlertReminder();
             _statsService?.FlushActiveSessions();
         }
         catch (Exception ex)
@@ -443,13 +519,31 @@ public partial class App : Application
             UpdateOverlay();
     }
 
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode != PowerModes.Resume)
+            return;
+
+        _ = Dispatcher.InvokeAsync(ResetMonitoringAfterResume, DispatcherPriority.Normal);
+    }
+
+    private void ResetMonitoringAfterResume()
+    {
+        _monitoringService?.Reset();
+        _previousState = SittingState.Idle;
+        ResetAlertReminder();
+        RefreshStatusSurfaces();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _isShuttingDown = true;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _timer?.Stop();
         _overlayTimer?.Stop();
         _statsService?.FlushActiveSessions();
         _overlayWindow?.Close();
+        _alertPopupWindow?.Close();
         _cameraPreviewWindow?.Close();
         _frameRecorder?.Dispose();
         _trayIcon?.Dispose();

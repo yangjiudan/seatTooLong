@@ -53,6 +53,20 @@ public class SittingMonitor
         }
     }
 
+    public void Reset()
+    {
+        var stateChanged = CurrentState != SittingState.Idle;
+
+        ResetSitting();
+        CurrentState = SittingState.Idle;
+        _stateStartTime = _time.Now;
+
+        if (stateChanged)
+        {
+            StateChanged?.Invoke(this, SittingState.Idle);
+        }
+    }
+
     private void HandleIdle(bool personDetected)
     {
         if (personDetected)

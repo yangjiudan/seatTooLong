@@ -155,4 +155,24 @@ public class MonitoringServiceTests
 
         _recorderMock.Verify(r => r.RecordFrame(It.IsAny<CapturedFrame>(), It.IsAny<FrameRecordingMetadata>()), Times.Never);
     }
+
+    [Fact]
+    public void Reset_WhenMonitoringHadProgress_ShouldReturnToIdleAndClearDurations()
+    {
+        _detectorMock.Setup(d => d.DetectPerson(It.IsAny<byte[]>(), 640, 480)).Returns(true);
+        var service = CreateService();
+
+        service.Tick();
+        AdvanceTime(TimeSpan.FromMinutes(10));
+        service.Reset();
+
+        Assert.Equal(SittingState.Idle, service.Monitor.CurrentState);
+        Assert.Equal(TimeSpan.Zero, service.Monitor.CurrentSittingDuration);
+        Assert.Equal(TimeSpan.Zero, service.Monitor.CurrentAbsenceDuration);
+        Assert.False(service.Monitor.IsPersonCurrentlyDetected);
+        Assert.False(service.Monitor.IsInAbsenceGracePeriod);
+        Assert.True(service.Monitor.CurrentStateDuration == TimeSpan.Zero);
+    }
+
+    private void AdvanceTime(TimeSpan span) => _currentTime += span;
 }

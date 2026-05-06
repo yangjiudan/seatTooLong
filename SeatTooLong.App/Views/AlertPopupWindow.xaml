@@ -1,0 +1,50 @@
+<Window x:Class="SeatTooLong.App.Views.AlertPopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SeatTooLong"
+        Width="340"
+        MinHeight="132"
+        SizeToContent="Height"
+        WindowStyle="None"
+        Background="#FF111827"
+        Topmost="True"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual">
+    <Border Background="#FF111827"
+            BorderBrush="#FFF97316"
+            BorderThickness="1"
+            Padding="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="TitleText"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       TextWrapping="Wrap" />
+
+            <TextBlock x:Name="BodyText"
+                       Grid.Row="1"
+                       Margin="0,10,0,14"
+                       FontSize="13"
+                       Foreground="#FFE5E7EB"
+                       TextWrapping="Wrap" />
+
+            <Button x:Name="DismissButton"
+                    Grid.Row="2"
+                    MinWidth="88"
+                    Padding="14,6"
+                    HorizontalAlignment="Right"
+                    Background="#FFF97316"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Click="DismissButton_Click" />
+        </Grid>
+    </Border>
+</Window>

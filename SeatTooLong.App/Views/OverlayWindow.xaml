@@ -2,7 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="SeatTooLong"
-        Width="180" Height="60"
+    Width="Auto" Height="Auto"
+    MinWidth="180" MinHeight="60"
+    SizeToContent="WidthAndHeight"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -13,9 +15,22 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
     <Border x:Name="OverlayBorder" CornerRadius="8" Padding="10,5"
             Background="#DD333333">
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock x:Name="StatusLabel" Text="已坐" Foreground="White" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <TextBlock x:Name="TimerLabel" Text="00:00" Foreground="#4FC3F7" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+        <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock x:Name="StatusLabel"
+                       Text="已坐"
+                       Foreground="White"
+                       FontSize="13"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,2"/>
+            <TextBlock x:Name="TimerLabel"
+                       Text="00:00"
+                       Foreground="#4FC3F7"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"/>
         </StackPanel>
     </Border>
 </Window>

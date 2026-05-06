@@ -65,6 +65,11 @@ public class MonitoringService
         }
     }
 
+    public void Reset()
+    {
+        Monitor.Reset();
+    }
+
     public sealed record MonitoringTickResult(
         CapturedFrame Frame,
         bool PersonDetected,
