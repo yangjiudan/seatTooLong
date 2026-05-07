@@ -33,6 +33,7 @@ public partial class App : Application
     private FileFrameRecorder? _frameRecorder;
     private DnnDeskPresenceDetector? _personDetector;
     private ITimeProvider? _timeProvider;
+    private readonly CameraCatalog _cameraCatalog = new();
     private readonly AlertReminderCoordinator _alertReminderCoordinator = new(TimeSpan.FromSeconds(75));
     private AppSettings _currentSettings = new();
     private CameraFailureKind _cameraFailure = CameraFailureKind.None;
@@ -82,8 +83,8 @@ public partial class App : Application
         var profileFaceCascadePath = Path.Combine(AppContext.BaseDirectory, "haarcascade_profileface.xml");
         var upperBodyCascadePath = Path.Combine(AppContext.BaseDirectory, "haarcascade_upperbody.xml");
         _personDetector = new DnnDeskPresenceDetector(faceModelPath, profileFaceCascadePath, upperBodyCascadePath);
-        var availableCameras = _cameraService.EnumerateCameras();
-        var cameraIndex = CameraSelection.ResolveCameraIndex(availableCameras, _currentSettings.CameraDeviceName, _currentSettings.CameraIndex);
+        _cameraCatalog.UpdateKnownCameras(_cameraService.EnumerateCameras());
+        var cameraIndex = _cameraCatalog.ResolveCameraIndex(_currentSettings.CameraDeviceName, _currentSettings.CameraIndex);
         _currentSettings.CameraIndex = cameraIndex;
         var cameraOpened = _cameraService.Open(cameraIndex);
 
@@ -334,10 +335,22 @@ public partial class App : Application
 
     private void ShowSettings()
     {
-        var cameras = _cameraService?.EnumerateCameras() ?? new List<CameraOption>();
+        var cameras = GetSettingsCameras();
         var win = new SettingsWindow(_settingsService!, _localization!, cameras);
         win.SettingsSaved += OnSettingsSaved;
         win.Show();
+    }
+
+    private IReadOnlyList<CameraOption> GetSettingsCameras()
+    {
+        if (_cameraCatalog.Cameras.Count > 0)
+            return _cameraCatalog.Cameras;
+
+        var fallbackName = string.IsNullOrWhiteSpace(_currentSettings.CameraDeviceName)
+            ? $"Camera {_currentSettings.CameraIndex}"
+            : _currentSettings.CameraDeviceName;
+
+        return [new CameraOption(fallbackName, _currentSettings.CameraIndex)];
     }
 
     private void ShowAboutDeferred()
@@ -378,7 +391,7 @@ public partial class App : Application
 
     private void OnSettingsSaved(AppSettings settings)
     {
-        var cameras = _cameraService?.EnumerateCameras() ?? [];
+        var cameras = GetSettingsCameras();
         var previousCameraIndex = CameraSelection.ResolveCameraIndex(cameras, _currentSettings.CameraDeviceName, _currentSettings.CameraIndex);
         settings.CameraIndex = CameraSelection.ResolveCameraIndex(cameras, settings.CameraDeviceName, settings.CameraIndex);
         _currentSettings = settings;
